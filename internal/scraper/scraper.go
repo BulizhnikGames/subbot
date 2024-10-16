@@ -1,76 +1,62 @@
 package scraper
 
 import (
-	"bufio"
 	"context"
-	"database/sql"
-	"fmt"
 	"github.com/BulizhnikGames/subbot/internal/bot"
 	"github.com/BulizhnikGames/subbot/internal/config"
+	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
-	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/updates"
 	"github.com/gotd/td/tg"
 	"log"
-	"os"
-	"strings"
 	"time"
 )
 
 type Scraper struct {
-	bot *bot.Bot
+	bot    *bot.Bot
 	client *telegram.Client
+	gaps   *updates.Manager
 }
 
 func Start(cfg config.Config) (*Scraper, error) {
-	tgbot, err := bot.Start(cfg.Bot_token, cfg.DB_URL, 10 * time.Second)
-	if err != nil{
+	tgbot, err := bot.Start(cfg.Bot_token, cfg.DB_URL, 10*time.Second)
+	if err != nil {
 		return nil, err
 	}
+
+	d := tg.NewUpdateDispatcher()
+	gaps := updates.New(updates.Config{
+		Handler: d,
+	})
+	client := telegram.NewClient(cfg.API_ID, cfg.API_hash, telegram.Options{UpdateHandler: gaps})
+	d.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewChannelMessage) error {
+		log.Printf("Got message from %s channel: %s", e.Channels[0], update.Message)
+		return nil
+	})
+
 	return &Scraper{
-		bot: tgbot,
-		client: telegram.NewClient(cfg.API_ID, cfg.API_hash, telegram.Options{})
+		bot:    tgbot,
+		client: client,
+		gaps:   gaps,
 	}, nil
 }
 
-func (s *Scraper) Run(cfg config.Config){
-	err := s.client.Run(context.Background(), func(ctx context.Context) error {
-		flow := auth.NewFlow(
-			auth.Constant(cfg.Phone, cfg.Password, auth.Code())
-		auth.SendCodeOptions{},
-	)
-
-		if err := s.client.Auth().IfNecessary(ctx, flow); err != nil {
+func (s *Scraper) Run(cfg config.Config) error {
+	return s.client.Run(context.Background(), func(ctx context.Context) error {
+		// Perform auth if no session is available.
+		if _, err := s.client.Auth().Bot(ctx, cfg.Bot_token); err != nil {
 			return err
 		}
-		// Создаем обработчик обновлений
-		handler := update.NewHandler()
-		handler.OnNewChannelMessage(func(ctx context.Context, e *tg.UpdateNewChannelMessage) error {
-			msg, ok := e.Message.(*tg.Message)
-			if !ok {
-				return nil
-			}
 
-			// Проверяем, что сообщение из нашего канала
-			peerChannel, ok := msg.PeerID.(*tg.PeerChannel)
-			if !ok {
-				return nil
-			}
+		user, err := s.client.Self(ctx)
+		if err != nil {
+			return errors.Wrap(err, "call self")
+		}
 
-			if peerChannel.ChannelID == channel.ID {
-				fmt.Printf("Новое сообщение в канале %s: %s\n", channelUsername, msg.Message)
-			}
-
-			return nil
+		return s.gaps.Run(ctx, s.client.API(), user.ID, updates.AuthOptions{
+			OnStart: func(ctx context.Context) {
+				log.Println("Gaps started")
+			},
 		})
-
-		// Добавляем обработчик к клиенту
-		s.client.AddEventHandler(handler)
-
-		// Запускаем бесконечный цикл для прослушивания обновлений
-		select {}
 	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
 }
