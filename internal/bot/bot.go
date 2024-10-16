@@ -44,6 +44,8 @@ func (b *Bot) WaitForUpdate(ctx context.Context) error {
 	updateConfig.Timeout = 30
 	updates := b.api.GetUpdatesChan(updateConfig)
 
+	log.Println("Waiting for commands...")
+
 	for {
 		select {
 		case update := <-updates:

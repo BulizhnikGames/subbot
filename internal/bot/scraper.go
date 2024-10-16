@@ -1,13 +1,17 @@
 package bot
 
 import (
+	"bufio"
 	"context"
 	"github.com/BulizhnikGames/subbot/internal/config"
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/telegram/updates"
 	"github.com/gotd/td/tg"
 	"log"
+	"os"
+	"strings"
 )
 
 type Scraper struct {
@@ -26,7 +30,7 @@ func StartScraper(apiID int, apiHash string) (*Scraper, error) {
 		if !ok {
 			return errors.New("unexpected message")
 		}
-		log.Printf("Got message from %s channel: %s", msg.GetPeerID().String(), update.Message)
+		log.Printf("Got message from %s: %s", msg.GetPeerID().String(), msg.String())
 		return nil
 	})
 
@@ -37,16 +41,48 @@ func StartScraper(apiID int, apiHash string) (*Scraper, error) {
 }
 
 func (s *Scraper) Run(cfg config.Config) error {
+	codePrompt := func(ctx context.Context, sentCode *tg.AuthSentCode) (string, error) {
+		log.Print("Enter code: ")
+		code, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(code), nil
+	}
+
+	flow := auth.NewFlow(
+		auth.Constant(
+			cfg.Phone,
+			cfg.Password,
+			auth.CodeAuthenticatorFunc(codePrompt)),
+		auth.SendCodeOptions{})
+
 	return s.client.Run(context.Background(), func(ctx context.Context) error {
-		// Perform auth if no session is available.
-		if _, err := s.client.Auth().Bot(ctx, cfg.Bot_token); err != nil {
+		if err := s.client.Auth().IfNecessary(ctx, flow); err != nil {
 			return err
 		}
+
+		/*if testSub != "" {
+			res, err := s.client.API().ContactsResolveUsername(ctx, testSub)
+			if err == nil {
+				channelID := res.Chats[0].GetID()
+				var channel tg.InputChannel
+				channel.ChannelID = channelID
+				upd, err := s.client.API().ChannelsJoinChannel(ctx, &channel)
+				if err != nil {
+					log.Printf("Error subing to test: %v", err)
+				} else {
+					log.Printf("Subing to test completed: %s", upd.String())
+				}
+			}
+		}*/
 
 		user, err := s.client.Self(ctx)
 		if err != nil {
 			return errors.Wrap(err, "call self")
 		}
+
+		log.Printf("Scraper is %s:", user.Username)
 
 		return s.gaps.Run(ctx, s.client.API(), user.ID, updates.AuthOptions{
 			OnStart: func(ctx context.Context) {

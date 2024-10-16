@@ -57,7 +57,7 @@ func Get() Config {
 		log.Fatal("Bot token not found in .env")
 	}
 
-	c.DB_URL = os.Getenv("DD_URL")
+	c.DB_URL = os.Getenv("DB_URL")
 	if c.DB_URL == "" {
 		log.Fatal("DB URL not found in .env")
 	}
