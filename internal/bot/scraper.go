@@ -1,41 +1,36 @@
-package scraper
+package bot
 
 import (
 	"context"
-	"github.com/BulizhnikGames/subbot/internal/bot"
 	"github.com/BulizhnikGames/subbot/internal/config"
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/updates"
 	"github.com/gotd/td/tg"
 	"log"
-	"time"
 )
 
 type Scraper struct {
-	bot    *bot.Bot
 	client *telegram.Client
 	gaps   *updates.Manager
 }
 
-func Start(cfg config.Config) (*Scraper, error) {
-	tgbot, err := bot.Start(cfg.Bot_token, cfg.DB_URL, 10*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
+func StartScraper(apiID int, apiHash string) (*Scraper, error) {
 	d := tg.NewUpdateDispatcher()
 	gaps := updates.New(updates.Config{
 		Handler: d,
 	})
-	client := telegram.NewClient(cfg.API_ID, cfg.API_hash, telegram.Options{UpdateHandler: gaps})
+	client := telegram.NewClient(apiID, apiHash, telegram.Options{UpdateHandler: gaps})
 	d.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewChannelMessage) error {
-		log.Printf("Got message from %s channel: %s", e.Channels[0], update.Message)
+		msg, ok := update.Message.AsNotEmpty()
+		if !ok {
+			return errors.New("unexpected message")
+		}
+		log.Printf("Got message from %s channel: %s", msg.GetPeerID().String(), update.Message)
 		return nil
 	})
 
 	return &Scraper{
-		bot:    tgbot,
 		client: client,
 		gaps:   gaps,
 	}, nil

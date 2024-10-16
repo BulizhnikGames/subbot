@@ -18,8 +18,8 @@ type Bot struct {
 
 type CommandFunc func(ctx context.Context, bot *tgbotapi.BotAPI, db *orm.Queries, update tgbotapi.Update) error
 
-func Start(token string, dburl string, timeout time.Duration) (*Bot, error) {
-	dbConn, err := sql.Open("postgres", dburl)
+func StartBot(token string, dbUrl string, timeout time.Duration) (*Bot, error) {
+	dbConn, err := sql.Open("postgres", dbUrl)
 	if err != nil {
 		return nil, err
 	}
