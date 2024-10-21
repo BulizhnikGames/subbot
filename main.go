@@ -13,25 +13,27 @@ func main() {
 	config.Load()
 	cfg := config.Get()
 
-	scraper, err := bot.StartScraper(cfg.API_ID, cfg.API_hash)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tgBot, err := bot.StartBot(cfg.Bot_token, cfg.DB_URL, 10*time.Minute)
+	tgBot, err := bot.StartBot(cfg, 10*time.Minute)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	go func() {
-		botErr := tgBot.WaitForUpdate(context.Background())
-		if botErr != nil {
-			log.Fatal(botErr)
+		err = tgBot.Scraper.Run(cfg)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}()
 
-	err = scraper.Run(cfg)
-	if err != nil {
-		log.Fatal(err)
+	go func() {
+		err = tgBot.WaitForNewPosts(context.Background())
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	botErr := tgBot.WaitForUpdate(context.Background())
+	if botErr != nil {
+		log.Fatal(botErr)
 	}
 }

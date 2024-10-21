@@ -17,6 +17,11 @@ import (
 type Scraper struct {
 	client *telegram.Client
 	gaps   *updates.Manager
+	Bot    *Bot
+}
+
+type Channel struct {
+	ChannelID string `json:"ChannelID"`
 }
 
 func StartScraper(apiID int, apiHash string) (*Scraper, error) {
@@ -30,7 +35,19 @@ func StartScraper(apiID int, apiHash string) (*Scraper, error) {
 		if !ok {
 			return errors.New("unexpected message")
 		}
-		log.Printf("Got message from %s: %s", msg.GetPeerID().String(), msg.String())
+		channelIDIndex := strings.Index(msg.String(), "ChannelID:")
+		closeBracketIndex := strings.Index(msg.String(), "}")
+		messageIDIndex := strings.Index(msg.String(), " ID:")
+		fromIDIndex := strings.Index(msg.String(), " FromID:")
+		if channelIDIndex < 0 || messageIDIndex < 0 || fromIDIndex < 0 || closeBracketIndex < 0 {
+			return errors.New("unexpected message")
+		}
+		message := &Message{
+			ChannelID: msg.String()[channelIDIndex+10 : closeBracketIndex],
+			MessageID: msg.String()[messageIDIndex+4 : fromIDIndex],
+		}
+		//log.Printf("Got message from %s: %s", message.ChannelID, message.MessageID)
+		messagesBuffer <- message
 		return nil
 	})
 
