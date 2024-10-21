@@ -14,7 +14,7 @@ SELECT COUNT(*) FROM subs
 WHERE chat = $1
 `
 
-func (q *Queries) GetSubCnt(ctx context.Context, chat string) (int64, error) {
+func (q *Queries) GetSubCnt(ctx context.Context, chat int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getSubCnt, chat)
 	var count int64
 	err := row.Scan(&count)
@@ -26,15 +26,15 @@ SELECT chat FROM subs
 WHERE channel = $1
 `
 
-func (q *Queries) GetSubsOfChannel(ctx context.Context, channel string) ([]string, error) {
+func (q *Queries) GetSubsOfChannel(ctx context.Context, channel int64) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, getSubsOfChannel, channel)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []int64
 	for rows.Next() {
-		var chat string
+		var chat int64
 		if err := rows.Scan(&chat); err != nil {
 			return nil, err
 		}
@@ -56,8 +56,8 @@ VALUES ($1, $2)
 `
 
 type SubscribeParams struct {
-	Channel string
-	Chat    string
+	Channel int64
+	Chat    int64
 }
 
 func (q *Queries) Subscribe(ctx context.Context, arg SubscribeParams) (Sub, error) {

@@ -3,6 +3,7 @@ package bot
 import (
 	"bufio"
 	"context"
+	"github.com/BulizhnikGames/subbot/internal/Tools"
 	"github.com/BulizhnikGames/subbot/internal/config"
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
@@ -17,7 +18,6 @@ import (
 type Scraper struct {
 	client *telegram.Client
 	gaps   *updates.Manager
-	Bot    *Bot
 }
 
 type Channel struct {
@@ -35,16 +35,17 @@ func StartScraper(apiID int, apiHash string) (*Scraper, error) {
 		if !ok {
 			return errors.New("unexpected message")
 		}
-		channelIDIndex := strings.Index(msg.String(), "ChannelID:")
-		closeBracketIndex := strings.Index(msg.String(), "}")
-		messageIDIndex := strings.Index(msg.String(), " ID:")
-		fromIDIndex := strings.Index(msg.String(), " FromID:")
-		if channelIDIndex < 0 || messageIDIndex < 0 || fromIDIndex < 0 || closeBracketIndex < 0 {
-			return errors.New("unexpected message")
+		channelID, err := Tools.GetChannelIDFromMessage(msg.String())
+		if err != nil {
+			return err
+		}
+		messageID, err := Tools.GetMessageIDFromMessage(msg.String())
+		if err != nil {
+			return err
 		}
 		message := &Message{
-			ChannelID: msg.String()[channelIDIndex+10 : closeBracketIndex],
-			MessageID: msg.String()[messageIDIndex+4 : fromIDIndex],
+			ChannelID: channelID,
+			MessageID: messageID,
 		}
 		//log.Printf("Got message from %s: %s", message.ChannelID, message.MessageID)
 		messagesBuffer <- message
@@ -79,19 +80,9 @@ func (s *Scraper) Run(cfg config.Config) error {
 			return err
 		}
 
-		/*if testSub != "" {
-			res, err := s.client.API().ContactsResolveUsername(ctx, testSub)
-			if err == nil {
-				channelID := res.Chats[0].GetID()
-				var channel tg.InputChannel
-				channel.ChannelID = channelID
-				upd, err := s.client.API().ChannelsJoinChannel(ctx, &channel)
-				if err != nil {
-					log.Printf("Error subing to test: %v", err)
-				} else {
-					log.Printf("Subing to test completed: %s", upd.String())
-				}
-			}
+		/*err := s.SubscribeToChannel(ctx, "bu1izhniktest")
+		if err != nil {
+			return err
 		}*/
 
 		user, err := s.client.Self(ctx)
@@ -107,4 +98,28 @@ func (s *Scraper) Run(cfg config.Config) error {
 			},
 		})
 	})
+}
+
+func (s *Scraper) SubscribeToChannel(ctx context.Context, channelName string) error {
+	res, err := s.client.API().ContactsResolveUsername(ctx, channelName)
+	if err != nil {
+		return err
+	}
+	//log.Printf("Channel info: %s", res.Chats[0].String())
+	channelID, err := Tools.GetChannelIDFromChannel(res.Chats[0].String())
+	if err != nil {
+		return err
+	}
+	accessHash, err := Tools.GetAccessHashFromChannel(res.Chats[0].String())
+	if err != nil {
+		return err
+	}
+	channel := tg.InputChannel{ChannelID: channelID, AccessHash: accessHash}
+	upd, err := s.client.API().ChannelsJoinChannel(ctx, &channel)
+	if err != nil {
+		log.Printf("Error subing to test: %v", err)
+	} else {
+		log.Printf("Subing to test completed: %s", upd.String())
+	}
+	return nil
 }

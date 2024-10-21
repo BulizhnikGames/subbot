@@ -1,8 +1,8 @@
 -- +goose Up
 
 CREATE TABLE subs(
-    channel TEXT NOT NULL,
-    chat TEXT NOT NULL,
+    channel BIGINT NOT NULL,
+    chat BIGINT NOT NULL,
     UNIQUE(channel, chat)
 );
 

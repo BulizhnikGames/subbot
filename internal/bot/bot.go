@@ -11,8 +11,8 @@ import (
 )
 
 type Message struct {
-	ChannelID string
-	MessageID string
+	ChannelID int64
+	MessageID int64
 }
 
 type Bot struct {
@@ -47,17 +47,13 @@ func StartBot(cfg config.Config, timeout time.Duration) (*Bot, error) {
 		return nil, err
 	}
 
-	res := &Bot{
+	return &Bot{
 		api:      bot,
 		commands: make(map[string]CommandFunc),
 		db:       orm.New(dbConn),
 		Scraper:  scraper,
 		timeout:  timeout,
-	}
-
-	scraper.Bot = res
-
-	return res, nil
+	}, nil
 }
 
 func (b *Bot) WaitForUpdate(ctx context.Context) error {
@@ -99,23 +95,12 @@ func (b *Bot) HandleUpdate(ctx context.Context, update tgbotapi.Update) {
 	}
 }
 
-func (b *Bot) WaitForNewPosts(ctx context.Context) error {
+func (b *Bot) SendNewPostsFromChannelToGroups(ctx context.Context) error {
 	select {
 	case msg := <-messagesBuffer:
-		log.Printf("Sending post from %s to groups message with ID %s", msg.ChannelID, msg.MessageID)
-		/*channelID, err := strconv.ParseInt(msg.ChannelID, 10, 64)
-		if err != nil {
-			log.Printf("Failed to convert channel id (%s) to int: %v", msg.ChannelID, err)
-			//TODO: Send error message
-		}
-		messageID, err := strconv.Atoi(msg.MessageID)
-		if err != nil {
-			log.Printf("Failed to convert message id (%s) to int: %v", msg.MessageID, err)
-			//TODO: Send error message
-		}
-		if _, err = b.api.Send(tgbotapi.NewForward(0, channelID, messageID)); err != nil {
+		log.Printf("Sending post from %v to groups message with ID %v", msg.ChannelID, msg.MessageID)
+		/*if _, err = b.api.Send(tgbotapi.NewForward(0, channelID, messageID)); err != nil {
 			log.Printf("Failed to forward message from channel: %v",  err)
-			//TODO: Send error message
 		}*/
 	case <-ctx.Done():
 		return ctx.Err()

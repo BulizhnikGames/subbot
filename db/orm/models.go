@@ -5,6 +5,6 @@
 package orm
 
 type Sub struct {
-	Channel string
-	Chat    string
+	Channel int64
+	Chat    int64
 }

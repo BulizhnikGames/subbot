@@ -26,7 +26,7 @@ func main() {
 	}()
 
 	go func() {
-		err = tgBot.WaitForNewPosts(context.Background())
+		err = tgBot.SendNewPostsFromChannelToGroups(context.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
