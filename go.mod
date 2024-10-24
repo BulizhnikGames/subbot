@@ -3,6 +3,7 @@ module github.com/BulizhnikGames/subbot
 go 1.23.0
 
 require (
+	github.com/go-faster/errors v0.7.1
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/gotd/td v0.111.2
 	github.com/joho/godotenv v1.5.1
@@ -11,7 +12,6 @@ require (
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/gotd/ige v0.2.2 // indirect

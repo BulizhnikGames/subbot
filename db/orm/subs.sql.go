@@ -49,6 +49,34 @@ func (q *Queries) GetSubsOfChannel(ctx context.Context, channel int64) ([]int64,
 	return items, nil
 }
 
+const listGroupSubs = `-- name: ListGroupSubs :many
+SELECT channel FROM subs
+WHERE chat = $1
+`
+
+func (q *Queries) ListGroupSubs(ctx context.Context, chat int64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listGroupSubs, chat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var channel int64
+		if err := rows.Scan(&channel); err != nil {
+			return nil, err
+		}
+		items = append(items, channel)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const subscribe = `-- name: Subscribe :one
 INSERT INTO subs(channel, chat)
 VALUES ($1, $2)

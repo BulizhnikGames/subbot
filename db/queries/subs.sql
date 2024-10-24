@@ -10,3 +10,7 @@ WHERE chat = $1;
 -- name: GetSubsOfChannel :many
 SELECT chat FROM subs
 WHERE channel = $1;
+
+-- name: ListGroupSubs :many
+SELECT channel FROM subs
+WHERE chat = $1;

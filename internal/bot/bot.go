@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/BulizhnikGames/subbot/db/orm"
+	"github.com/BulizhnikGames/subbot/internal/bot/commands"
 	"github.com/BulizhnikGames/subbot/internal/config"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
@@ -15,17 +16,16 @@ type Message struct {
 	MessageID int64
 }
 
-type Bot struct {
-	api      *tgbotapi.BotAPI
-	commands map[string]CommandFunc
-	db       *orm.Queries
-	Scraper  *Scraper
-	timeout  time.Duration
-}
-
 var messagesBuffer chan *Message
 
-type CommandFunc func(ctx context.Context, bot *tgbotapi.BotAPI, db *orm.Queries, update tgbotapi.Update) error
+type Bot struct {
+	api                *tgbotapi.BotAPI
+	commands           map[string]commands.CommandFunc
+	db                 *orm.Queries
+	scraper            *Scraper
+	expectNextFromUser *commands.UserExpect
+	timeout            time.Duration
+}
 
 func StartBot(cfg config.Config, timeout time.Duration) (*Bot, error) {
 	messagesBuffer = make(chan *Message, 40)
@@ -49,11 +49,20 @@ func StartBot(cfg config.Config, timeout time.Duration) (*Bot, error) {
 
 	return &Bot{
 		api:      bot,
-		commands: make(map[string]CommandFunc),
+		commands: *RegisterCommands(),
 		db:       orm.New(dbConn),
-		Scraper:  scraper,
-		timeout:  timeout,
+		scraper:  scraper,
+		expectNextFromUser: &commands.UserExpect{
+			ExpectNext: make(map[int64]commands.CommandFunc),
+		},
+		timeout: timeout,
 	}, nil
+}
+
+func RegisterCommands() *map[string]commands.CommandFunc {
+	cmds := make(map[string]commands.CommandFunc)
+	cmds["list"] = commands.SlashList
+	return &cmds
 }
 
 func (b *Bot) WaitForUpdate(ctx context.Context) error {
@@ -80,13 +89,27 @@ func (b *Bot) HandleUpdate(ctx context.Context, update tgbotapi.Update) {
 		return
 	}
 
+	if !update.Message.Chat.IsGroup() {
+		if _, err := b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Команды этого бота можно использовать только в группах")); err != nil {
+			log.Printf("Error sending restriction message (can use bot only in groups): %v", err)
+		}
+		return
+	}
+
 	msgCommand := update.Message.Command()
 	cmd, ok := b.commands[msgCommand]
 	if !ok {
 		return
 	}
 
-	if err := cmd(ctx, b.api, b.db, update); err != nil {
+	if err := cmd(ctx, &commands.CommandArguments{
+		Api:       b.api,
+		DB:        b.db,
+		Status:    b.expectNextFromUser,
+		UserID:    update.Message.From.ID,
+		GroupID:   update.Message.Chat.ID,
+		ChannelID: 0,
+	}); err != nil {
 		log.Printf("Failed to exec command: %v", err)
 
 		if _, err := b.api.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Internal error")); err != nil {
